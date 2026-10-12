@@ -1,0 +1,55 @@
+services:
+  app:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    ports:
+      - "8080:8080"
+    env_file:
+      - cmd/auction/.env
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - localNetwork
+
+  mongodb:
+    image: mongo:7
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    env_file:
+      - cmd/auction/.env
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - localNetwork
+
+  test:
+    image: golang:1.20
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      MONGODB_TEST_URL: mongodb://admin:admin@mongodb:27017/?authSource=admin
+    command: go test -v -count=1 ./...
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    profiles:
+      - test
+    networks:
+      - localNetwork
+
+volumes:
+  mongo-data:
+    driver: local
+
+networks:
+  localNetwork:
+    driver: bridge
